@@ -18,7 +18,25 @@ admin.initializeApp({
 app.use(cors());
 app.use(express.json());
 
-
+const verifyFirebaseToken = async (req, res, next) => {
+  // console.log("in firebase", req.headers.authorization);
+  const tokenStr = req.headers.authorization;
+  if (!tokenStr) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const token = tokenStr.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  try {
+    const userInfo = await admin.auth().verifyIdToken(token);
+    req.token_email = userInfo.email;
+    // console.log(userInfo);
+    next();
+  } catch {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.5rkszyx.mongodb.net/?appName=Cluster0`;
 
