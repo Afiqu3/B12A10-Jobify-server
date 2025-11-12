@@ -1,13 +1,23 @@
 const express = require("express");
 const cors = require("cors");
+const admin = require("firebase-admin");
 require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 3000;
 
+
+const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, "base64").toString("utf8");
+const serviceAccount = JSON.parse(decoded);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.5rkszyx.mongodb.net/?appName=Cluster0`;
@@ -46,6 +56,57 @@ async function run() {
         const result = await usersCollection.insertOne(newUser);
         res.send(result);
       }
+    });
+
+    app.get('/jobs', async (req, rs) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.email = email;
+      }
+      const cursor = jobsCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.get("/latest-jobs", async (req, res) => {
+      const cursor = jobsCollection
+        .find()
+        .sort({ postedDate: -1 })
+        .limit(6);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.get("/jobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await jobsCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.post("/jobs", verifyFirebaseToken, async (req, res) => {
+      const newProduct = req.body;
+      const result = await jobsCollection.insertOne(newProduct);
+      res.send(result);
+    });
+
+    app.patch("/jobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedProduct = req.body;
+      const query = { _id: new ObjectId(id) };
+      const update = {
+        $set: updatedProduct,
+      };
+      const result = await jobsCollection.updateOne(query, update);
+      res.send(result);
+    });
+
+    app.delete("/jobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await jobsCollection.deleteOne(query);
+      res.send(result);
     });
 
 
