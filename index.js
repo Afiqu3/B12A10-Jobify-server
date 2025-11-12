@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -76,13 +76,16 @@ async function run() {
       }
     });
 
-    app.get('/jobs', async (req, rs) => {
-      const email = req.query.email;
-      const query = {};
-      if (email) {
-        query.email = email;
+    app.get('/jobs', async (req, res) => {
+      const sortOrder = req.query.sort;
+      const sortQuery = {};
+      if (sortOrder === "asc") {
+        sortQuery.postedDate = 1;
       }
-      const cursor = jobsCollection.find(query);
+      else if(sortOrder === "desc") {
+        sortQuery.postedDate = -1;
+      }
+      const cursor = jobsCollection.find().sort(sortQuery);
       const result = await cursor.toArray();
       res.send(result);
     });
