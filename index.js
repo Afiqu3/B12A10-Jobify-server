@@ -6,8 +6,10 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const port = process.env.PORT || 3000;
 
-
-const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, "base64").toString("utf8");
+const decoded = Buffer.from(
+  process.env.FIREBASE_SERVICE_KEY,
+  "base64"
+).toString("utf8");
 const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
@@ -45,7 +47,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 app.get("/", (req, res) => {
@@ -55,10 +57,11 @@ app.get("/", (req, res) => {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     const jobify_DB = client.db("jobify_DB");
     const usersCollection = jobify_DB.collection("users");
     const jobsCollection = jobify_DB.collection("jobs");
+    const acceptedJobsCollection = jobify_DB.collection("acceptedJobs");
 
     // users
     app.post("/users", async (req, res) => {
@@ -76,13 +79,12 @@ async function run() {
       }
     });
 
-    app.get('/jobs', async (req, res) => {
+    app.get("/jobs", async (req, res) => {
       const sortOrder = req.query.sort;
       const sortQuery = {};
       if (sortOrder === "asc") {
         sortQuery.postedDate = 1;
-      }
-      else if(sortOrder === "desc") {
+      } else if (sortOrder === "desc") {
         sortQuery.postedDate = -1;
       }
       const cursor = jobsCollection.find().sort(sortQuery);
@@ -90,11 +92,19 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/myJobs", verifyFirebaseToken, async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.userEmail = email;
+      }
+      const cursor = jobsCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
     app.get("/latest-jobs", async (req, res) => {
-      const cursor = jobsCollection
-        .find()
-        .sort({ postedDate: -1 })
-        .limit(6);
+      const cursor = jobsCollection.find().sort({ postedDate: -1 }).limit(6);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -112,7 +122,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/jobs/:id", async (req, res) => {
+    app.patch("/jobs/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const updatedProduct = req.body;
       const query = { _id: new ObjectId(id) };
@@ -130,10 +140,46 @@ async function run() {
       res.send(result);
     });
 
+    // acceptedJobs
+    app.post("/acceptedJobs", verifyFirebaseToken, async (req, res) => {
+      const job = req.body;
+
+      const exists = await acceptedJobsCollection.findOne({
+        jobId: job.jobId,
+        userEmail: job.userEmail,
+      });
+
+      if (exists) {
+        return res.send({ message: "Already accepted", insertedId: null });
+      }
+
+      const result = await acceptedJobsCollection.insertOne(job);
+      res.send(result);
+    });
+
+    app.get("/acceptedJobs", verifyFirebaseToken, async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.userEmail = email;
+      }
+      const result = await acceptedJobsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.delete("/acceptedJobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await acceptedJobsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();

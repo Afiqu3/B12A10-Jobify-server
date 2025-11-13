@@ -1,3 +1,4 @@
 node_modules
 .env
 jobify-firebase-admin.json
+.vercel
